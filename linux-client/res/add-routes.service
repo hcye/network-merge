@@ -1,0 +1,14 @@
+[Unit]
+Description=add routes on system start
+After=network.target
+
+[Service]
+Type=forking
+ExecStart=/usr/bin/python3 /usr/local/scripts/change_gateway.py
+ExecStopPost=/usr/local/scripts/del-route.sh
+RemainAfterExit=yes
+Restart=always
+TimeoutSec=0
+User=root
+[Install]  
+WantedBy=multi-user.target  
