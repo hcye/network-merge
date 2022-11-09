@@ -1,7 +1,11 @@
 # --*-- coding:utf-8 --*--
+import datetime
 import subprocess
 
+import requests
+
 base_path = '/usr/local/scripts/'
+
 
 def get_gateway():
     cmd = 'route -n'
@@ -22,15 +26,39 @@ def get_gateway():
     return GATEWAY
 
 
-def replacd_gateway():
+def update_routes():
+    cu_day = int(datetime.datetime.now().day)
+    if int(cu_day % 3) == 0:
+        res_add = requests.get('http://gitlab.synsense.ai/add-routes.html')
+        res_del = requests.get('http://gitlab.synsense.ai/del-routes.html')
+        lines_add = res_add.text
+        lines_del = res_del.text
+        if 'route add' in lines_add:
+            with open(f'{base_path}add-route.sh', 'w', encoding='utf-8') as fp:
+                lines_li = lines_add.split('\n')
+                for i in lines_li:
+                    i = i.replace('\n', '')
+                    i = i.replace('<br/>', '').strip()
+                    fp.write(f'{i.strip()}\n')
+        if 'route del' in lines_del:
+            with open(f'{base_path}del-route.sh', 'w', encoding='utf-8') as fp:
+                lines_li = lines_del.split('\n')
+                for i in lines_li:
+                    i = i.replace('\n', '')
+                    i = i.replace('<br/>', '').strip()
+                    fp.write(f'{i.strip()}\n')
+    replace_gateway()
 
+
+def replace_gateway():
     with open(f'{base_path}add-route.sh', 'r', encoding='utf-8') as fp:
-        lines = fp.readlines()
+        lines_add = fp.readlines()
     new_geteway = get_gateway()
     new_route_lines = []
     new_route_lines.append('#!/bin/bash \n')
-    for i in lines:
-        if 'gw' in i:
+    for i in lines_add:
+        if 'gw' in lines_add[i]:
+            i = i.replace('\n', '').strip()
             old_gateway = i.split(' ')[5].replace('\n', '')
             if new_geteway == old_gateway:
                 subprocess.getoutput(f'bash {base_path}add-route.sh')
@@ -45,4 +73,4 @@ def replacd_gateway():
 
 
 if __name__ == '__main__':
-    replacd_gateway()
+    update_routes()

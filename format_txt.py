@@ -134,7 +134,7 @@ class merge_networks:
         for i in lines:
             i = i.replace('\n', '').strip()
             if i:
-                if len(i.split(separator))<2:
+                if len(i.split(separator)) < 2:
                     print(i)
                 yuanshi = i.split(separator)[1]
                 yuanshi_1 = i.split(separator)[0]
@@ -190,15 +190,48 @@ class merge_networks:
                 new_lines.append(m)
         return new_lines
 
-    def add_route_cli(self, lines):
+    def add_route_cli(self, lines,html):
         ad_pf = open('add-route.sh', 'w', encoding='utf-8')
         ad_pf.write('#!/bin/bash \n')
         for i in lines:
             if i.replace('\n', '').strip():
                 i = i.replace('\n', '')
-                line = f'route add -net {i} gw 192.168.8.1\n'
+                if html:
+                    line = f'route add -net {i} gw 192.168.8.1<br/>\n'
                 ad_pf.write(line)
         ad_pf.close()
+
+    def del_routes_cli_by_addfile(self,html):
+        ad_pf = open('add-route.sh', 'r', encoding='utf-8')
+        del_pf = open('del-route.sh', 'w', encoding='utf-8')
+        if html:
+            del_pf.write('#!/bin/bash <br/>\n')
+        else:
+            del_pf.write('#!/bin/bash \n')
+        lines = ad_pf.readlines()
+        for i in lines:
+            if i.replace('\n', '') and '#' not in i:
+                network = i.split(' ')[3]
+                if html:
+                    cmd = f'route del -net {network}<br/>\n'
+                del_pf.write(cmd)
+        ad_pf.close()
+        del_pf.close()
+
+    def add_routes_win_by_addfile(self, html):
+
+        ad_pf = open('add-route.sh', 'r', encoding='utf-8')
+        add_win_pf = open('add-route.bat', 'w', encoding='utf-8')
+
+        lines = ad_pf.readlines()
+        for i in lines:
+            if i.replace('\n', '') and '#' not in i:
+                network = i.split(' ')[3]
+                if html:
+                    cmd = f'route add {network} 192.168.8.1<br/> \n'
+                add_win_pf.write(cmd)
+        ad_pf.close()
+        add_win_pf.close()
 
     def remove_error_lines(self, lines):
         new_lines = []

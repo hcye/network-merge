@@ -1,5 +1,7 @@
 import subprocess
 
+import requests
+
 from format_txt import *
 
 
@@ -39,6 +41,17 @@ def fo():
                 fp_1.write(i.replace(' ', '-') + '\n')
 
 
+def format_ad():
+    with open('add-route.sh', 'r', encoding='utf-8') as fp:
+        lines = fp.readlines()
+    new_lines = []
+    for i in lines:
+        i = i.replace('\n', '<br/>\n')
+        new_lines.append(i)
+    with open('add-route1.sh', 'w', encoding='utf-8') as fp:
+        fp.writelines(new_lines)
+
+
 # 192.168.8.0 255.255.255.0
 def remove_255_lines(lines):
     new_lines = []
@@ -54,9 +67,8 @@ def final_work(lines):
     lines = remove_255_lines(lines)
     lines = mg.yanma_3(lines, '-')
     correct_lines = mg.remove_error_lines(lines)
-    mg.add_route_cli(correct_lines)
-    mg.make_clear_route_cli(correct_lines)
-
+    mg.add_route_cli(correct_lines,1)
+    mg.del_routes_cli_by_addfile(1)
 
 
 # 192.168.8.0/24
