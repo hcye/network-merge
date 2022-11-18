@@ -9,7 +9,17 @@ class merge_networks:
     merged_networks = []
     continus_networks = []
 
-    def pre_proc(self, lines, sep):
+    def get_sep(self, lines):
+        if len(lines) > 0:
+            if '-' in lines[0]:
+                return '-'
+            elif ' ' in lines[0]:
+                return ' '
+        else:
+            return ''
+
+    def pre_proc(self, lines):
+        sep = self.get_sep(lines)
         new_lines = []
         for i in lines:
             if i:
@@ -36,7 +46,6 @@ class merge_networks:
                 mask_yan = int(i_s[1].replace('\n', ''))
                 num_255 = int(mask_yan / 8)
                 tail = int(mask_yan % 8)
-                str_tail = ''
                 str_head = ''
                 if tail == 0:
                     str_tail = '0'
@@ -55,8 +64,9 @@ class merge_networks:
         return new_lines
 
     # 192.168.8.0 192.168.8.255   ->192.168.8.0  255.255.255.0
-    def yanma_1(self, lines, separator):
-        lines = self.pre_proc(lines, separator)
+    def yanma_1(self, lines):
+        separator = self.get_sep(lines)
+        lines = self.pre_proc(lines)
         for i in lines:
             i_s = []
             for k in i.strip().split(separator):
@@ -96,7 +106,8 @@ class merge_networks:
         return new_lines
 
     # 192.168.8.0 192.168.8.255   ->192.168.8.0 255.255.255.0'
-    def yanma_2(self, lines, separator):
+    def yanma_2(self, lines):
+        separator = self.get_sep(lines)
         for m in lines:
             start = m.split(separator)[0].strip()
             end = m.split(separator)[1].strip()
@@ -126,14 +137,24 @@ class merge_networks:
             new_lines.append(route_line)
         return new_lines
 
+    def remove_routes(self,origin_lines):
+        repeat_lines = self.find_repeat_lines(origin_lines)
+        new_lines = self.remove_repeat_lines(repeat_lines, origin_lines)
+        includes = self.get_include_lines(new_lines)
+        single_lines = self.remove_include_lines(includes, new_lines)
+        return single_lines
     # 192.168.0.0 255.255.255.0 -> 192.168.0.0/24
-    def yanma_3(self, lines, separator):
-        with open('res/yanma_duizhao.txt', 'r', encoding='utf-8') as fp_tmp:
+    def yanma_3(self, lines):
+        with open('/root/PycharmProjects/format_txt/res/yanma_duizhao.txt', 'r', encoding='utf-8') as fp_tmp:
             tmp_lines = fp_tmp.readlines()
         target_lines = []
         for i in lines:
             i = i.replace('\n', '').strip()
             if i:
+                if '-' in i:
+                    separator = '-'
+                else:
+                    separator = ' '
                 if len(i.split(separator)) < 2:
                     print(i)
                 yuanshi = i.split(separator)[1]
@@ -158,39 +179,80 @@ class merge_networks:
                         if yuanshi == tp2:
                             target_lines.append(f'{yuanshi_1}/{tp1} \n')
                             break
-        new_lines = []
-        for m in target_lines:
-            net_head = m.split('/')[0]
-            net_mask = m.split('/')[1].strip().replace('\n', '')
-            if net_mask == '24':
-                new_lines.append(m)
-                continue
-            mask_num = int(int(net_mask) / 8)
-            mask_num_yu = int(int(net_mask) % 8)
-            compare_num = net_head.split('.')[int(mask_num)]
-            compare_num = compare_num.strip().replace('\n', '')
-            net_heads = m.split(f'.{compare_num}.')[0]
-            net_tail = m.split(f'.{compare_num}.')[1]
-            if '0.0/8' in m:
-                m = net_head + '/' + '16\n'
-                new_lines.append(m)
-                continue
-            elif mask_num_yu == 0:
-                new_lines.append(m)
-                continue
-            elif int(int(compare_num) % int(math.pow(2, 8 - mask_num_yu))) != 0:
+        return target_lines
 
-                ip_num = int(int(compare_num) + int(math.pow(2, 8 - mask_num_yu))
-                             - int(compare_num) % math.pow(2, 8 - mask_num_yu))
-                if ip_num > 255:
-                    ip_num = int(int(compare_num) - int(compare_num) % math.pow(2, 8 - mask_num_yu))
-                new_network = net_heads + '.' + str(ip_num) + '.' + net_tail
-                new_lines.append(new_network)
-            elif int(int(compare_num) % int(math.pow(2, 8 - mask_num_yu))) == 0:
-                new_lines.append(m)
-        return new_lines
+    def merge(self, lines):
+        target_lines = []
+        mask_edge_dict = {}
+        fp = open('mask_edge', 'r', encoding='utf-8')
+        all_lines = fp.readlines()
+        fp.close()
+        for n in all_lines:
+            n_s = n.split('-')
+            mask_edge_dict[n_s[0]] = n_s[1].split(',')
+        separetor = self.get_sep(lines)
+        for i in lines:
+            if i.replace('\n', '').strip():
+                start = i.split(separetor)[0]
+                end = i.split(separetor)[1].replace('\n', '')
+                starts = start.split('.')
+                ends = end.split('.')
+                if self.get_head(start, 2) == \
+                        self.get_head(end, 2):
+                    head_num = 2
+                    if starts[head_num] == ends[head_num] or (starts[head_num] == '0' and ends[head_num] == '255'):
+                        target_lines.append(i)
+                        continue
+                else:
+                    head_num = 1
+                res = self.cal_start_end(i.split(separetor), mask_edge_dict, head_num, separetor)
+                target_lines.append(res)
+        return target_lines
 
-    def add_route_cli(self, lines,html):
+    def get_start_end(self,lines):
+        target = []
+        for i in lines:
+            if i:
+                sep = self.get_sep(i)
+                start = i[0].split(sep)[0]
+                end = i[len(i) - 1].split(sep)[1]
+                target.append(f'{start}{sep}{end}')
+        return target
+
+    def cal_start_end(self, item, mask_edge_dict, head_num, sep):
+        item_start = item[0].split('.')
+        item_end = item[1].split('.')
+        start_num_origin = item_start[head_num]
+        end_num_origin = item_end[head_num]
+        if head_num == 1:
+            mask_start = 15
+            while mask_start >= 8:
+                range_list = mask_edge_dict.get(str(mask_start))
+                for i in range(0, len(range_list) - 1):
+                    if int(range_list[i]) <= int(start_num_origin) and int(range_list[i + 1]) >= int(end_num_origin):
+                        item_start[head_num] = range_list[i].replace('\n', '')
+                        item_end[head_num] = str(int(range_list[i + 1].replace('\n', '')) - 1)
+                        new_item_start = '.'.join(item_start)
+                        new_item_end = '.'.join(item_end)
+                        return f'{new_item_start}{sep}{new_item_end}'
+                mask_start = mask_start - 1
+        if head_num == 2:
+            mask_start = 23
+            while mask_start >= 16:
+                range_list = mask_edge_dict.get(str(mask_start))
+                for i in range(0, len(range_list) - 1):
+                    if int(range_list[i]) <= int(start_num_origin) and int(range_list[i + 1]) > int(end_num_origin):
+                        item_start[head_num] = range_list[i].replace('\n', '')
+                        item_end[head_num] = str(int(range_list[i + 1].replace('\n', '')) - 1)
+                        new_item_start = '.'.join(item_start)
+                        new_item_end = '.'.join(item_end)
+                        return f'{new_item_start}{sep}{new_item_end}'
+                mask_start = mask_start - 1
+            print('find error' + '-'.join(item))
+
+        # print(start_num_origin, end_num_origin)
+
+    def add_route_cli(self, lines, html):
         ad_pf = open('add-route.sh', 'w', encoding='utf-8')
         ad_pf.write('#!/bin/bash \n')
         for i in lines:
@@ -198,10 +260,12 @@ class merge_networks:
                 i = i.replace('\n', '')
                 if html:
                     line = f'route add -net {i} gw 192.168.8.1<br/>\n'
+                else:
+                    line = f'route add -net {i} gw 192.168.8.1\n'
                 ad_pf.write(line)
         ad_pf.close()
 
-    def del_routes_cli_by_addfile(self,html):
+    def del_routes_cli_by_addfile(self, html):
         ad_pf = open('add-route.sh', 'r', encoding='utf-8')
         del_pf = open('del-route.sh', 'w', encoding='utf-8')
         if html:
@@ -214,6 +278,8 @@ class merge_networks:
                 network = i.split(' ')[3]
                 if html:
                     cmd = f'route del -net {network}<br/>\n'
+                else:
+                    cmd = f'route del -net {network}\n'
                 del_pf.write(cmd)
         ad_pf.close()
         del_pf.close()
@@ -229,23 +295,12 @@ class merge_networks:
                 network = i.split(' ')[3]
                 if html:
                     cmd = f'route add {network} 192.168.8.1<br/> \n'
+                else:
+                    cmd = f'route add {network} 192.168.8.1 \n'
                 add_win_pf.write(cmd)
         ad_pf.close()
         add_win_pf.close()
 
-    def remove_error_lines(self, lines):
-        new_lines = []
-        for i in lines:
-            if i.replace('\n', '').strip():
-                i = i.replace('\n', '')
-                line = f'route add -net {i} gw 192.168.8.1\n'
-                output = subprocess.getoutput(line)
-                if not output:
-                    new_lines.append(i + "\n")
-                else:
-                    line = f'route del -net {i}'
-                    subprocess.getoutput(line)
-        return new_lines
 
     def add_route_win(self, lines):
         ad_pf = open('add-route.txt', 'w', encoding='utf-8')
@@ -264,18 +319,18 @@ class merge_networks:
                 if i == j:
                     n = n + 1
                     if n > 1:
-                        repeate_lines.append(i)
+                        if i not in repeate_lines:
+                            repeate_lines.append(i)
         return repeate_lines
 
-    def remove_repeat_lines(self, repeate_lines, origin_lines):
-        print(f'{len(repeate_lines)},{len(origin_lines)}')
+    def remove_include_lines(self, repeate_lines, origin_lines):
         new_lines = []
         for i in origin_lines:
             flag = True
             for j in repeate_lines:
                 if not j.replace('\n', '').strip():
                     continue
-                if i == j:
+                if i.replace('\n', '').strip() == j.replace('\n', '').strip():
                     flag = False
                     break
             if flag:
@@ -283,7 +338,6 @@ class merge_networks:
                     new_lines.append(f'{i}\n')
                 else:
                     new_lines.append(f'{i}')
-        print(f'{len(new_lines)}')
         return new_lines
 
     def make_clear_route_cli(self, lines):
@@ -296,7 +350,8 @@ class merge_networks:
         del_fp.close()
 
     # 192.168.0.0 255.255.0.0->192.168.0.0 192.168.255.255
-    def yanma_4(self, lines, sep):
+    def yanma_4(self, lines):
+        sep = self.get_sep(lines)
         all_net_lines = []
         for i in lines:
             i_s = i.replace('\n', '').split(sep)
@@ -321,7 +376,11 @@ class merge_networks:
             all_net_lines.append(target_line + '\n')
         return all_net_lines
 
-    def get_include(self, lines, sep):
+    def get_include_lines(self, lines):
+
+        fp = open('include_lines', 'w', encoding='utf-8')
+
+        sep = self.get_sep(lines)
         target = []
         for i in lines:
             i_s = i.replace('\n', '').split(sep)
@@ -341,7 +400,7 @@ class merge_networks:
                 start_l = start.split('.')
                 end_l = end.split('.')
                 end_m_l = end_m.split('.')
-                if start.split('.')[0] == start_m.split('.')[0]:
+                if start_l[0] == start_m_l[0]:
                     for c in range(1, 4):
                         if int(start_l[c]) > int(start_m_l[c]) or int(end_l[c]) < int(end_m_l[c]):
                             # print(start_l[c] + '>' + start_m_l[c] + '---' + end_l[c] + '<' + end_m_l[c])
@@ -350,9 +409,10 @@ class merge_networks:
                 else:
                     continue
                 if flag:
-                    target.append(m)
-        # for k in target:
-        #     print(k)
+                    if i not in target:
+                        fp.write(f'{i},{m}')
+                        target.append(m)
+        fp.close()
         return target
 
     def sort_ips(self, ips):
@@ -382,7 +442,8 @@ class merge_networks:
             raise ip1 + '---' + str(n)
         return ip1_sum
 
-    def sort_1(self, lines, separator):
+    def sort_1(self, lines):
+        separator = self.get_sep(lines)
         line_lists = []
         all_lists_signgle = []
         sorted_lists = []
@@ -415,17 +476,17 @@ class merge_networks:
 
         single_list = []
         for r in all_lists_signgle:
-            res = self.sort_in_list(r, separator)
-            if len(res) > 1:
-                sorted_lists.append(res)
+            if len(r) > 1:
+                sorted_lists.append(r)
             else:
-                single_list.append(res[0])
+                single_list.append(r[0])
         sorted_lists.append(single_list)
 
         all_lianxu = []
 
         for qe in sorted_lists:
-            lianxu = self.network_marge(qe, separator)
+            sorted_list = self.sort_in_list(qe)
+            lianxu = self.network_marge(sorted_list)
             if not lianxu:
                 continue
             num_init = len(qe)
@@ -453,7 +514,7 @@ class merge_networks:
         second_cal = []
         for i11 in all_list:
             if i11:
-                second = self.network_marge(i11, separator)
+                second = self.network_marge(self.sort_in_list(i11))
                 num_init = len(i11)
 
                 # ----cal len of all items
@@ -483,10 +544,7 @@ class merge_networks:
 
         all_list = self.split_list(all_list_2)
         # --------------------
-        self.continus_networks = all_list
-        for i in all_list:
-            self.do_merge(i, separator)
-        print(len(self.merged_networks))
+        return all_list
 
     # ---------------------------------
 
@@ -522,7 +580,8 @@ class merge_networks:
 
         return tmp_lw2
 
-    def sort_in_list(self, list, separator):
+    def sort_in_list(self, list):
+        separator = self.get_sep(list)
         num_networks_tmp = []
         num_networks = []
         num_list = []
@@ -570,7 +629,40 @@ class merge_networks:
 
         return target
 
-    def do_merge(self, list, separate):
+    def get_big_range(self, lines):
+        new_lines = []
+        for i in lines:
+            separate = self.get_sep(i)
+            if i:
+                start = i[0].split(separate)[0]
+                end = i[len(i) - 1].split(separate)[1]
+                network = f'{start}-{end}'
+                print(f'{i}\n{network}')
+                new_lines.append(network)
+        return new_lines
+
+    # ['172.106.12.0-172.107.255.255']->['172.106.0.0-172.107.255.255']
+    def amend_error_network(self, lines):
+        targets = []
+        seperator = self.get_sep(lines)
+        for i in lines:
+            i_s = i.split(seperator)
+            start = i_s[0]
+            end = i_s[1]
+            starts = start.split('.')
+            ends = end.split('.')
+            if starts[1] != ends[1] and starts[2] != ends[2]:
+                starts[2] = '0'
+                ends[2] = '255'
+                start = '.'.join(starts)
+                end = '.'.join(ends)
+                targets.append(f'{start}{seperator}{end}')
+            else:
+                targets.append(i)
+        return targets
+
+    def do_merge(self, list):
+        separate = self.get_sep(list)
         jiange_plus = [2, 6, 14, 30, 62, 126, 254]
         jianges = [1, 3, 7, 15, 31, 63, 127, 255]
         if not list:
@@ -625,12 +717,13 @@ class merge_networks:
                         self.merged_networks.append(network_end)
                         return
                     else:
-                        self.do_merge(target, separate)
+                        self.do_merge(target)
 
-    def network_marge(self, list, separator):
+    def network_marge(self, list):
+        lianxu_step = 1
+        separator = self.get_sep(list)
         target = []
         single_index_tmp = []
-        lianxu_num = []
         lianxu = []
         if len(list) == 1:
             target.append(list)
@@ -647,82 +740,68 @@ class merge_networks:
                 if i == 0:
                     end_i = list[i].replace('\n', '').split(separator)[1].split('.')[compare_index]
                     next_start_i = list[i + 1].replace('\n', '').split(separator)[0].split('.')[compare_index]
-                    if int(next_start_i) - int(end_i) > 5:
+                    if int(next_start_i) - int(end_i) > lianxu_step:
                         single_index_tmp.append(i)
                 if 0 < i < len(list) - 1:
                     after_end_i = list[i].replace('\n', '').split(separator)[1].split('.')[compare_index]
                     after_next_start_i = list[i + 1].replace('\n', '').split(separator)[0].split('.')[compare_index]
+                    if int(after_next_start_i) - int(after_end_i) > lianxu_step:
+                        if i not in single_index_tmp:
+                            single_index_tmp.append(i)
 
-                    before_end_i = list[i - 1].replace('\n', '').split(separator)[1].split('.')[compare_index]
-                    before_next_start_i = list[i].replace('\n', '').split(separator)[0].split('.')[compare_index]
+            str_list = []
+            for k in range(0, len(list)):
+                str_list.append(str(k))
 
-                    if int(after_next_start_i) - int(after_end_i) > 5 and int(before_next_start_i) - int(
-                            before_end_i) > 5:
-                        single_index_tmp.append(i)
-                if i == len(list) - 1:
-
-                    end_i = list[i - 1].replace('\n', '').split(separator)[1].split('.')[compare_index]
-                    next_start_i = list[i].replace('\n', '').split(separator)[0].split('.')[compare_index]
-                    if int(next_start_i) - int(end_i) > 5:
-                        single_index_tmp.append(i)
-            if len(single_index_tmp) == 1:
-                if single_index_tmp[0] == 0:
-                    lianxu_num.append(f'1---{len(list) - 1}')
-                if single_index_tmp[0] == len(list) - 1:
-                    lianxu_num.append(f'0---{len(list) - 2}')
-                if 0 < single_index_tmp[0] < len(list) - 1:
-                    lianxu_num.append(f'0---{single_index_tmp[0] - 1}')
-                    lianxu_num.append(f'{single_index_tmp[0] + 1}---{len(list) - 1}')
-            if len(single_index_tmp) == 0:
-                lianxu_num.append(f'0---{len(list) - 1}')
-            if len(single_index_tmp) > 1:
-                for i2 in range(0, len(single_index_tmp) - 1):
-                    if single_index_tmp[i2] - single_index_tmp[i2 + 1] < -1:
-                        lianxu_num.append(f'{single_index_tmp[i2] + 1}---{single_index_tmp[i2 + 1] - 1}')
-            if single_index_tmp and len(single_index_tmp) > 1:
-                if single_index_tmp[len(single_index_tmp) - 1] != len(list) - 1:
-                    if f'{single_index_tmp[len(single_index_tmp) - 1] + 1}---{len(list) - 1}' not in lianxu_num:
-                        lianxu_num.append(f'{single_index_tmp[len(single_index_tmp) - 1] + 1}---{len(list) - 1}')
-                if single_index_tmp[0] != 0 and single_index_tmp[0] != len(list) - 1:
-                    if f'0---{single_index_tmp[0]}' not in lianxu_num:
-                        lianxu_num.append(f'0---{single_index_tmp[0] - 1}')
-            if single_index_tmp:
-                for i4 in single_index_tmp:
-                    tmp = []
-                    tmp.append(list[i4])
-                    target.append(tmp)
-            for i5 in lianxu_num:
-                start = int(i5.split('---')[0])
-                end = int(i5.split('---')[1])
-                lianxu_tmp = []
-                for i6 in range(0, len(list)):
-
-                    if start <= i6 <= end:
-                        if compare_index == 1:
-                            if list[i6].split(separator)[0].split('.')[2] != '0':
-                                add_flag = True
-                                if target:
-                                    for i7 in target:
-                                        if i7:
-                                            if i7[0] == list[i6]:
-                                                add_flag = False
-                                                break
-                                if add_flag:
-                                    tmp1 = []
-                                    tmp1.append(list[i6])
-                                    target.append(tmp1)
-                            else:
-                                lianxu_tmp.append(list[i6])
-                        else:
-                            lianxu_tmp.append(list[i6])
-
-                lianxu.append(lianxu_tmp)
+            splited_list = self.split_list_index(single_index_tmp, str_list)
+            if type(splited_list) != type([]):
+                print(f'asdasdas{single_index_tmp},{str_list}')
+            for i5 in splited_list:
+                tmp = []
+                i5_s = i5[0].split('---')
+                start = i5_s[0]
+                end = i5_s[1]
+                if start == end:
+                    tmp.append(list[int(start)])
+                    lianxu.append(tmp)
+                else:
+                    for i6 in range(int(start), int(end) + 1):
+                        tmp.append(list[int(i6)])
+                    lianxu.append(tmp)
                 # if not target:
                 #     lianxu.append(list)
 
             target.append(lianxu)
             # print(target)
+        return target
+
+    def split_list_index(self, duandian, all_index):
+        if not duandian:
+            target = []
+            tmp = []
+            tmp.append(f'{all_index[0]}---{all_index[len(all_index) - 1]}')
+            target.append(tmp)
             return target
+        target_list = []
+        all_num_str = ',' + ','.join(all_index) + ','
+        for n in range(0, len(duandian)):
+            tmp = []
+            all_s = all_num_str.split(',' + str(duandian[n]) + ',')
+            start = all_num_str.split(',')[1]
+            tmp.append(f'{start}---{str(duandian[n])}')
+            target_list.append(tmp)
+            tmp_1 = []
+            for m in all_s[1].split(','):
+                if m:
+                    tmp_1.append(m)
+            all_num_str = ',' + ','.join(tmp_1) + ','
+        all_num_strs = all_num_str.split(',')
+        tmp = []
+
+        if str(duandian[len(duandian) - 1]) != all_index[len(all_index) - 1]:
+            tmp.append(f'{all_num_strs[1]}---{all_num_strs[len(all_num_strs) - 2]}')
+            target_list.append(tmp)
+        return target_list
 
     def split_list(self, list):
         all_list = []
@@ -842,6 +921,29 @@ class merge_networks:
             if 'Usage:' in out:
                 print(i)
 
+    def remove_repeat_lines(self, repeate_lines, origin_lines):
+        print(len(repeate_lines), len(origin_lines))
+        new_lines = []
+        for i in origin_lines:
+            flag = True
+            for j in repeate_lines:
+                if not j.replace('\n', '').strip():
+                    continue
+                if i.replace('\n', '').strip() == j.replace('\n', '').strip():
+                    flag = False
+                    break
+            if flag:
+                if '\n' not in i:
+                    new_lines.append(f'{i}\n')
+                else:
+                    new_lines.append(f'{i}')
+        for n in repeate_lines:
+            if '\n' not in n:
+                new_lines.append(f'{n}\n')
+            else:
+                new_lines.append(f'{n}')
+        return new_lines
+
 
 def cast():
     with open('res.txt', 'r', encoding='utf-8') as fp:
@@ -850,29 +952,7 @@ def cast():
     mrge.yanma_4(mrge.yanma(lines))
 
 
-# network_marge(sort_in_list(test_list3))
-# split_lianxu_list(test_list3)
 
-
-# cal_network_ip_num()
-# yanma_3(yanma_2(test_list3))
-# do_merge(test_list2)
-# print(merged_networks)
-# with open('merge_res.txt','r',encoding='utf-8') as fp:
-#     lines1=fp.readlines()
-#
-# lines=yanma_3(yanma_2(lines1))
-# cal_network_ip_num(lines)
-
-# if __name__ == '__main__':
-#     merge = merge_networks()
-#     merge.sort_1()
-#     routes = merge.yanma_3(merge.yanma_2(merge.merged_networks))
-#     merge.add_route_win(routes)
-#     merge.add_route_cli(routes)
-#     merge.make_clear_route(routes)
-
-#
 
 
 if __name__ == '__main__':
@@ -881,13 +961,4 @@ if __name__ == '__main__':
     mrge = merge_networks()
     mrge.yanma_4(mrge.yanma(lines))
 
-    # ---------------2---------------------------------------
 
-    # formated_cn_ip_blocks = merge.yanma_1('ips_test', '-')
-    # repeate_lines = merge.find_repeat_lines(formated_cn_ip_blocks)
-    # if repeate_lines:
-    #     formated_cn_ip_blocks = merge.remove_repeat_lines(repeate_lines, formated_cn_ip_blocks)
-    # print(repeate_lines)
-    # with open('add-route.sh', 'r', encoding='utf-8') as fp:
-    #     lines = fp.readlines()
-    # merge.add_routes(lines)

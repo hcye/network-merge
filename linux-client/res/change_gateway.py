@@ -1,7 +1,6 @@
 # --*-- coding:utf-8 --*--
-import datetime
-import subprocess
 
+import subprocess
 import requests
 
 base_path = '/usr/local/scripts/'
@@ -27,27 +26,50 @@ def get_gateway():
 
 
 def update_routes():
-    cu_day = int(datetime.datetime.now().day)
-    if int(cu_day % 3) == 0:
-        res_add = requests.get('http://gitlab.synsense.ai/add-routes.html')
-        res_del = requests.get('http://gitlab.synsense.ai/del-routes.html')
-        lines_add = res_add.text
-        lines_del = res_del.text
+    count = read_counter()
+    if not count:
+        count = 1
+    count = int(count)
+    if count < 15:
+        write_counter(str(count + 1))
+    elif count == 15:
+        write_counter(str(1))
+        get_routes()
+    replace_gateway()
+
+
+
+def get_routes():
+    res_add = requests.get('http://gitlab.synsense.ai/add-routes.html')
+    res_del = requests.get('http://gitlab.synsense.ai/del-routes.html')
+    if '200' in str(res_add) and '200' in str(res_del):
+        lines_add = res_add.text.replace('  ', ' ')
+        lines_del = res_del.text.replace('  ', ' ')
         if 'route add' in lines_add:
             with open(f'{base_path}add-route.sh', 'w', encoding='utf-8') as fp:
                 lines_li = lines_add.split('\n')
                 for i in lines_li:
-                    i = i.replace('\n', '')
-                    i = i.replace('<br/>', '').strip()
-                    fp.write(f'{i.strip()}\n')
+                    i = i.replace('\n', '').strip()
+                    fp.write(f'{i}\n')
+        subprocess.getoutput(f'chmod +x {base_path}add-route.sh')
         if 'route del' in lines_del:
             with open(f'{base_path}del-route.sh', 'w', encoding='utf-8') as fp:
                 lines_li = lines_del.split('\n')
                 for i in lines_li:
-                    i = i.replace('\n', '')
-                    i = i.replace('<br/>', '').strip()
+                    i = i.replace('\n', '').strip()
                     fp.write(f'{i.strip()}\n')
-    replace_gateway()
+        subprocess.getoutput(f'chmod +x {base_path}del-route.sh')
+
+
+def read_counter():
+    with open(f'{base_path}counter', 'r', encoding='utf-8') as fp:
+        count = fp.read()
+    return count
+
+
+def write_counter(count):
+    with open(f'{base_path}counter', 'w', encoding='utf-8') as fp:
+        fp.write(count)
 
 
 def replace_gateway():
@@ -57,7 +79,7 @@ def replace_gateway():
     new_route_lines = []
     new_route_lines.append('#!/bin/bash \n')
     for i in lines_add:
-        if 'gw' in lines_add[i]:
+        if 'gw' in i:
             i = i.replace('\n', '').strip()
             old_gateway = i.split(' ')[5].replace('\n', '')
             if new_geteway == old_gateway:

@@ -52,8 +52,8 @@ class install_add_route:
         script_path = '/usr/local/scripts'
         service_file = 'res/add-routes.service'
         python_file = 'res/change_gateway.py'
-        subprocess.getoutput(f'chmod +x add-route.sh ; mkdir -p {script_path}'
-                             f' ; cp add-route.sh del-route.sh  {script_path}'
+        subprocess.getoutput(f'chmod +x res/add-route.sh ; mkdir -p {script_path}'
+                             f' ;cp res/counter {script_path};cp res/*.sh {script_path}'
                              f' ;cp {python_file}  {script_path}')
         subprocess.getoutput(f' cp {service_file} /lib/systemd/system/ ; systemctl daemon-reload '
                              f'; systemctl enable add-routes;systemctl start add-routes')
