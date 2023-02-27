@@ -69,7 +69,7 @@ def final_work(lines):
     mg = merge_networks()
     lines = mg.yanma_1(lines, ' ')
     # lines = remove_255_lines(lines)
-    lines = mg.yanma_3(lines, '-')
+    lines = yanma_3(lines, '-')
     correct_lines = mg.remove_error_lines(lines)
     mg.add_route_cli(correct_lines, 1)
     mg.del_routes_cli_by_addfile(1)

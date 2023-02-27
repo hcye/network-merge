@@ -2,17 +2,13 @@ import math
 
 import requests
 
-from format_txt import *
+from merge_network import *
 
 mg = merge_networks()
 
+
 def main(origin_lines):
-
-    fp = open('ips.txt', 'r', encoding='utf-8')
-    origin_lines = fp.readlines()
     origin_lines = mg.pre_proc(origin_lines)
-    fp.close()
-
     single_lines = mg.remove_routes(origin_lines)
     sorted_lines = mg.sort_1(single_lines)
 
@@ -21,22 +17,23 @@ def main(origin_lines):
     mg.merged_networks = mg.merge(amanded_lines)
 
     single_lines = mg.remove_routes(mg.merged_networks)
-    lines = mg.yanma_3(mg.yanma_2(single_lines))
+    lines = yanma_3(mg.yanma_2(single_lines))
+
+    # gen add and del shell script for linux
     mg.add_route_cli(lines, '')
     mg.del_routes_cli_by_addfile('')
 
 
-def test_merge():
+def test_merge(origin_lines):
     rep = mg.find_repeat_lines(origin_lines)
     res = mg.remove_repeat_lines(rep, origin_lines)
-    lines = mg.yanma_3(mg.yanma_2(res))
+    lines = yanma_3(mg.yanma_2(res))
     mg.add_route_cli(lines, '')
     mg.del_routes_cli_by_addfile('')
 
 
 def cal_mask_edge():
     with open('mask_edge', 'w', encoding='utf-8') as fp:
-        base = 0
         for i in range(8, 25):
             tmp = []
             mask_yu = 8 - int(i % 8)
@@ -114,18 +111,8 @@ def cal_start_end(item, mask_edge_dict, head_num, sep):
             mask_start = mask_start - 1
         print('find error' + '-'.join(item))
 
-    # print(start_num_origin, end_num_origin)
 
-
-# remove_repeate_lines(origin_lines)
-# lines=mg.yanma_3(mg.yanma_2(remove_include_lines()))
-# mg.add_route_cli(lines,'')
-# mg.del_routes_cli_by_addfile('')
 if __name__ == '__main__':
-    # sorted_lines = mg.sort_1(origin_lines)
-    # big_ranges = mg.get_big_range(sorted_lines)
-    # with open('big_ranges', 'w', encoding='utf-8') as fp:
-    #     for i in big_ranges:
-    #         fp.write(f'{i}\n')
-    # main(origin_lines)
-    mg.add_routes_win_by_addfile('')
+    with open('ips_test.txt', 'r', encoding='utf-8') as fp:
+        lines = fp.readlines()
+        main(lines)

@@ -4,6 +4,44 @@ import subprocess
 
 new_lines = []
 
+# get seperator of the ip range --> 192.168.8.0-192.168.8.255
+def yanma_3(lines):
+    with open('/root/PycharmProjects/format_txt/res/yanma_duizhao.txt', 'r', encoding='utf-8') as fp_tmp:
+        tmp_lines = fp_tmp.readlines()
+    target_lines = []
+    for i in lines:
+        i = i.replace('\n', '').strip()
+        if i:
+            if '-' in i:
+                separator = '-'
+            else:
+                separator = ' '
+            if len(i.split(separator)) < 2:
+                print(i)
+            yuanshi = i.split(separator)[1]
+            yuanshi_1 = i.split(separator)[0]
+            yuanshi_tmps = yuanshi_1.split('.')
+            if yuanshi_tmps[3] != '0':
+                yuanshi_1 = yuanshi_tmps[0] + '.' + yuanshi_tmps[1] + '.' + yuanshi_tmps[2] + '.0'
+            flag = True
+            for n1 in tmp_lines:
+                if yuanshi in n1:
+                    flag = False
+                    break
+            if flag:
+                # print(yuanshi)
+                yuanshi = '255.255.255.0'
+            for n in tmp_lines:
+                n = n.replace('\n', '').strip()
+                if n:
+                    tp1 = n.split(' ')[0]
+                    tp2 = n.split(' ')[1]
+
+                    if yuanshi == tp2:
+                        target_lines.append(f'{yuanshi_1}/{tp1} \n')
+                        break
+    return target_lines
+
 
 class merge_networks:
     merged_networks = []
@@ -18,6 +56,8 @@ class merge_networks:
         else:
             return ''
 
+    # modify the error network range like 192.168.7.0-192.168.8.5 that can not transfer to 192.168.8.0/23
+    # to 192.168.8.7.0-192.168.8.255
     def pre_proc(self, lines):
         sep = self.get_sep(lines)
         new_lines = []
@@ -38,7 +78,7 @@ class merge_networks:
                 new_lines.append(f'{start}{sep}{end}')
         return new_lines
 
-    # 192.168.8.0/24     ->192.168.8.0  255.255.255.0
+    # transfer 192.168.8.0/24     ->192.168.8.0  255.255.255.0
     def yanma(self, lines):
         for i in lines:
             if i and '/' in i:
@@ -63,7 +103,7 @@ class merge_networks:
                 new_lines.append(route_line)
         return new_lines
 
-    # 192.168.8.0 192.168.8.255   ->192.168.8.0  255.255.255.0
+    # transfer 192.168.8.0-192.168.8.255   ->192.168.8.0-255.255.255.0
     def yanma_1(self, lines):
         separator = self.get_sep(lines)
         lines = self.pre_proc(lines)
@@ -105,7 +145,7 @@ class merge_networks:
             new_lines.append(route_line)
         return new_lines
 
-    # 192.168.8.0 192.168.8.255   ->192.168.8.0 255.255.255.0'
+    # transfer 192.168.8.0-192.168.8.255   ->192.168.8.0-255.255.255.0'
     def yanma_2(self, lines):
         separator = self.get_sep(lines)
         for m in lines:
@@ -137,53 +177,18 @@ class merge_networks:
             new_lines.append(route_line)
         return new_lines
 
-    def remove_routes(self,origin_lines):
+    def remove_routes(self, origin_lines):
         repeat_lines = self.find_repeat_lines(origin_lines)
         new_lines = self.remove_repeat_lines(repeat_lines, origin_lines)
         includes = self.get_include_lines(new_lines)
         single_lines = self.remove_include_lines(includes, new_lines)
         return single_lines
-    # 192.168.0.0 255.255.255.0 -> 192.168.0.0/24
-    def yanma_3(self, lines):
-        with open('/root/PycharmProjects/format_txt/res/yanma_duizhao.txt', 'r', encoding='utf-8') as fp_tmp:
-            tmp_lines = fp_tmp.readlines()
-        target_lines = []
-        for i in lines:
-            i = i.replace('\n', '').strip()
-            if i:
-                if '-' in i:
-                    separator = '-'
-                else:
-                    separator = ' '
-                if len(i.split(separator)) < 2:
-                    print(i)
-                yuanshi = i.split(separator)[1]
-                yuanshi_1 = i.split(separator)[0]
-                yuanshi_tmps = yuanshi_1.split('.')
-                if yuanshi_tmps[3] != '0':
-                    yuanshi_1 = yuanshi_tmps[0] + '.' + yuanshi_tmps[1] + '.' + yuanshi_tmps[2] + '.0'
-                flag = True
-                for n1 in tmp_lines:
-                    if yuanshi in n1:
-                        flag = False
-                        break
-                if flag:
-                    # print(yuanshi)
-                    yuanshi = '255.255.255.0'
-                for n in tmp_lines:
-                    n = n.replace('\n', '').strip()
-                    if n:
-                        tp1 = n.split(' ')[0]
-                        tp2 = n.split(' ')[1]
 
-                        if yuanshi == tp2:
-                            target_lines.append(f'{yuanshi_1}/{tp1} \n')
-                            break
-        return target_lines
-
+    # transer 192.168.0.0-55.255.255.0 -> 192.168.0.0/24
     def merge(self, lines):
         target_lines = []
         mask_edge_dict = {}
+    # mask_edge store all the valid ip tail range
         fp = open('mask_edge', 'r', encoding='utf-8')
         all_lines = fp.readlines()
         fp.close()
@@ -209,7 +214,8 @@ class merge_networks:
                 target_lines.append(res)
         return target_lines
 
-    def get_start_end(self,lines):
+    # transfer 192.168.8.0-192.168.8.255 -> [192.168.8.0,192.168.8.255]
+    def get_start_end(self, lines):
         target = []
         for i in lines:
             if i:
@@ -219,6 +225,7 @@ class merge_networks:
                 target.append(f'{start}{sep}{end}')
         return target
 
+    #
     def cal_start_end(self, item, mask_edge_dict, head_num, sep):
         item_start = item[0].split('.')
         item_end = item[1].split('.')
@@ -252,6 +259,7 @@ class merge_networks:
 
         # print(start_num_origin, end_num_origin)
 
+    # gen the script for add routes
     def add_route_cli(self, lines, html):
         ad_pf = open('add-route.sh', 'w', encoding='utf-8')
         ad_pf.write('#!/bin/bash \n')
@@ -264,6 +272,65 @@ class merge_networks:
                     line = f'route add -net {i} gw 192.168.8.1\n'
                 ad_pf.write(line)
         ad_pf.close()
+
+    # 'ip route add 0.0.0.0/1 via 192.168.2.1 dev ens192 table ens192-route'
+    # 'ip route add 0.0.0.0/1 via 192.168.1.1 dev ens33 table ens33-route'
+
+    def ip_routes_add(self):
+        with open('add-route.sh', 'r', encoding='utf-8') as fp:
+            all_lines = fp.readlines()
+        lines = []
+        for n in all_lines:
+            # 'route add -net 45.125.44.0/22  gw 192.168.8.1'
+            if 'route' in n:
+                lines.append(n.split(' ')[3])
+        usa_fp = open('add-route-ip-usa.sh', 'w', encoding='utf-8')
+        ger_fp = open('add-route-ip-ger.sh', 'w', encoding='utf-8')
+        usa_fp.write('#!/bin/bash \n')
+        ger_fp.write('#!/bin/bash \n')
+        ger_lines = []
+        usa_lines = []
+        for i in lines:
+            i = i.replace('\n', '')
+            if i:
+                line_usa = f'ip route add {i} via 192.168.8.1 dev ens160 table usa\n'
+                line_ger = f'ip route add {i} via 192.168.8.1 dev ens160 table ger\n'
+                ger_lines.append(line_ger)
+                usa_lines.append(line_usa)
+        usa_fp.writelines(usa_lines)
+        ger_fp.writelines(ger_lines)
+        usa_fp.flush()
+        ger_fp.flush()
+        usa_fp.close()
+        ger_fp.close()
+
+    def ip_routes_del(self):
+        with open('add-route.sh', 'r', encoding='utf-8') as fp:
+            all_lines = fp.readlines()
+        lines = []
+        for n in all_lines:
+            # 'route add -net 45.125.44.0/22  gw 192.168.8.1'
+            if 'route' in n:
+                lines.append(n.split(' ')[3])
+        usa_fp = open('del-route-ip-usa.sh', 'w', encoding='utf-8')
+        ger_fp = open('del-route-ip-ger.sh', 'w', encoding='utf-8')
+        usa_fp.write('#!/bin/bash \n')
+        ger_fp.write('#!/bin/bash \n')
+        ger_lines = []
+        usa_lines = []
+        for i in lines:
+            i = i.replace('\n', '')
+            if i:
+                line_usa = f'ip route del {i} via 192.168.8.1 dev ens160 table usa\n'
+                line_ger = f'ip route del {i} via 192.168.8.1 dev ens160 table ger\n'
+                ger_lines.append(line_ger)
+                usa_lines.append(line_usa)
+        usa_fp.writelines(usa_lines)
+        ger_fp.writelines(ger_lines)
+        usa_fp.flush()
+        ger_fp.flush()
+        usa_fp.close()
+        ger_fp.close()
 
     def del_routes_cli_by_addfile(self, html):
         ad_pf = open('add-route.sh', 'r', encoding='utf-8')
@@ -300,7 +367,6 @@ class merge_networks:
                 add_win_pf.write(cmd)
         ad_pf.close()
         add_win_pf.close()
-
 
     def add_route_win(self, lines):
         ad_pf = open('add-route.txt', 'w', encoding='utf-8')
@@ -377,9 +443,7 @@ class merge_networks:
         return all_net_lines
 
     def get_include_lines(self, lines):
-
         fp = open('include_lines', 'w', encoding='utf-8')
-
         sep = self.get_sep(lines)
         target = []
         for i in lines:
@@ -536,17 +600,12 @@ class merge_networks:
 
         all_list_1 = self.split_list(second_cal)
         all_list_2 = []
-        # for aaa in all_list:
-        #     print(aaa)
         for i111 in all_list_1:
             res = self.split_lianxu_list(i111, separator)
             all_list_2.append(res)
 
         all_list = self.split_list(all_list_2)
-        # --------------------
         return all_list
-
-    # ---------------------------------
 
     def sort_2(self, li, separator):
         lists = []
@@ -626,7 +685,6 @@ class merge_networks:
                     target.append(target_lianxu)
                 if target_not_lianxu and target_not_lianxu not in target:
                     target.append(target_not_lianxu)
-
         return target
 
     def get_big_range(self, lines):
@@ -755,7 +813,7 @@ class merge_networks:
 
             splited_list = self.split_list_index(single_index_tmp, str_list)
             if type(splited_list) != type([]):
-                print(f'asdasdas{single_index_tmp},{str_list}')
+                print(f'{single_index_tmp},{str_list}')
             for i5 in splited_list:
                 tmp = []
                 i5_s = i5[0].split('---')
@@ -824,7 +882,6 @@ class merge_networks:
                 if type(i3[0]) == type([]):
                     print(f'{i3}--------------\n\n\n')
             num = num + len(i3)
-        print(num, 'asdasdas')
         return all_list
 
     def split_lianxu_list(self, list, separator):
@@ -952,13 +1009,8 @@ def cast():
     mrge.yanma_4(mrge.yanma(lines))
 
 
-
-
-
 if __name__ == '__main__':
     with open('res.txt', 'r', encoding='utf-8') as fp:
         lines = fp.readlines()
     mrge = merge_networks()
     mrge.yanma_4(mrge.yanma(lines))
-
-
