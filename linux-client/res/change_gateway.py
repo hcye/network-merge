@@ -40,8 +40,8 @@ def update_routes():
 
 
 def get_routes():
-    res_add = requests.get('http://gitlab.synsense.ai/add-routes.html')
-    res_del = requests.get('http://gitlab.synsense.ai/del-routes.html')
+    res_add = requests.get('http://xxx.com/add-routes.html')
+    res_del = requests.get('http://xxx.com/del-routes.html')
     if '200' in str(res_add) and '200' in str(res_del):
         lines_add = res_add.text.replace('  ', ' ')
         lines_del = res_del.text.replace('  ', ' ')
